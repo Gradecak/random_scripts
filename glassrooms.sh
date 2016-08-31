@@ -6,6 +6,7 @@ DATE=`date +%Y%m%d`
 #Remember to use grep with the -E flag to ensure it actually works
 REGEX='\d\d* (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \((Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\):\d{2}:\d{2}-\d{2}:\d{2} [A-Z][a-z]+(\s|,)[A-Z][a-z]{1,19}'
 
+NAME_REGEX="[A-Z]?[a-z ,.'-]+ [A-Z]?[a-z ,.'-]+ \[[a-z]{2}\d\]"
 ROOMS=('sgmr1.pl' 'sgmr2.pl' 'sgmr3.pl' 'sgmr4.pl' 'sgmr5.pl' 'sgmr6.pl' 'sgmr7.pl' 'sgmr8.pl')
 ROOM_BOOKING=('sgmr1.request.pl' 'sgmr2.request.pl' 'sgmr3.request.pl' 'sgmr4.request.pl' 'sgmr5.request.pl' 'sgmr6.request.pl' 'sgmr7.request.pl' 'sgmr8.request.pl')
 
@@ -22,13 +23,22 @@ cyn=$'\e[1;36m'
 end=$'\e[0m'
 
 #RUNTIME VARIABLES
-user=""
-password=""
+user="o"
+password="o"
+firstname="o"
+surname="o"
+year="o"
 
 function get_name {
-    page="$(curl --user $user:$password $LIST_URL/${ROOM_BOOKING[0]})"
-    text="$(awk '{gsub("<[^>]*>", "")}1' <<< $page)"
-    book=
+    {
+        page="$(curl --user $user:$password $LIST_URL/${ROOM_BOOKING[0]})"
+        text="$(awk '{gsub("<[^>]*>", "")}1' <<< $page)"
+        fullname=($(echo $text | grep -E -o "$NAME_REGEX"))
+    }&>/dev/null #supress curl output
+    
+    firstname=${fullname[0]}
+    surname=${fullname[1]}
+    year=${fullname[2]}
 }
 
 # return the string of bookings for the room
@@ -66,7 +76,8 @@ function main {
     read  user
     printf "Password:"
     read -s password
-    
+    get_name
+    printf ${grn}'\n Welcome: %s %s %s\n'${end} "${firstname} ${surname} ${year}"
     while read c; do
         case $c in
             "exit")
