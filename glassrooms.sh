@@ -1,6 +1,9 @@
 #CONSTANTS
 DELIMITER="|"
 DATE=`date +%Y%m%d`
+HOUR=$(date +%-H)
+DAY=$(date +%-d)
+MONTH=$(date +%-m)
 
 #Dirty dirty regex for matching string like 25 Aug 2016 (Thursday):11:00-13:00 Hank Hill 
 #Remember to use grep with the -E flag to ensure it actually works
@@ -23,12 +26,13 @@ cyn=$'\e[1;36m'
 end=$'\e[0m'
 
 #RUNTIME VARIABLES
-user="o"
-password="o"
-firstname="o"
-surname="o"
-year="o"
+user=""
+password=""
+firstname=""
+surname=""
+year=""
 
+#fetch the naame, surname and year of the logged in student (used for booking and cancelling requests)
 function get_name {
     {
         page="$(curl --user $user:$password $LIST_URL/${ROOM_BOOKING[0]})"
@@ -38,7 +42,9 @@ function get_name {
     
     firstname=${fullname[0]}
     surname=${fullname[1]}
-    year=${fullname[2]}
+    status=${fullname[2]}
+    year="$(echo $status | sed 's/.*\[//;s/\].*//;')"
+    echo $year
 }
 
 # return the string of bookings for the room
@@ -64,11 +70,32 @@ function list {
 function book {
     printf "Room #:"
     read room
-    printf "Start time:"
+    printf "\nStart time:"
     read start
-    printf "End time:"
-    read end
-
+    printf "\nEnd time:"
+    read endTime
+    
+    dataString="StartTime=$start&EndTime=$endTime&Fullname=$firstname&Status=$year&StartDate=$DAY&StartMonth=$MONTH&StartYear=1"
+    {
+        echo "$dataString"
+        response="$(curl --data "$dataString" --user $user:$password $LIST_URL/${ROOM_BOOKING[$room -1]})"
+    }&>/dev/null #supress curl output
+    
+    status="$(echo $response | grep -o 'SUCCESS\|FAILED\|Booking Pending')"
+    case $status in
+        "SUCCESS")
+            printf ${grn}"Booking successfull\n"${end}
+            ;;
+        "FAILED")
+            printf ${red}"Booking failed\n"${end}
+            ;;
+        "Booking Pending")
+            printf ${yel}'Too many active bookings\n'${end}
+            ;;
+        *)
+            printf "Uhhh should not be here?\n"
+            ;;
+        esac
 }
 
 function main { 
@@ -77,7 +104,7 @@ function main {
     printf "Password:"
     read -s password
     get_name
-    printf ${grn}'\n Welcome: %s %s %s\n'${end} "${firstname} ${surname} ${year}"
+    printf ${grn}'\nWelcome: %s %s %s\n'${end} "${firstname} ${surname} ${year}"
     while read c; do
         case $c in
             "exit")
@@ -87,7 +114,7 @@ function main {
                 list
                 ;;
             "book")
-                echo booking
+                book
                 ;;
             "cancel")
                 echo canceling
