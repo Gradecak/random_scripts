@@ -65,7 +65,7 @@ function init {
 #fetch the naame, surname and year of the logged in student (used for booking and cancelling requests)
 function get_name {
     {
-        page="$(curl --user $user:$password $LIST_URL/${ROOM_BOOKING[0]})"
+        page="$(curl --user "$user:$password" $LIST_URL/${ROOM_BOOKING[0]})"
         text="$(awk '{gsub("<[^>]*>", "")}1' <<< $page)"
         fullname=($(echo $text | grep -E -o "$NAME_REGEX"))
     }&>/dev/null #supress curl output
@@ -81,7 +81,7 @@ function get_name {
 # $1 room from the rooms array
 function fetch_list {    
     {
-    page="$(curl --user $user:$password $LIST_URL/$1)" 
+    page="$(curl --user "$user:$password" $LIST_URL/$1)" 
     }&>/dev/null #supress curl output
 
     text="$(awk '{gsub("<[^>]*>", "")}1' <<< $page)"
@@ -101,7 +101,7 @@ function book {
     dataString="StartTime=$2&EndTime=$3&Fullname=$firstname&Status=$year&StartDate=$DAY&StartMonth=$MONTH&StartYear=1"
     {
         echo "$dataString"
-        response="$(curl --data "$dataString" --user $user:$password $LIST_URL/${ROOM_BOOKING[$1 -1]})"
+        response="$(curl --data "$dataString" --user "$user:$password" $LIST_URL/${ROOM_BOOKING[$1 -1]})"
     }&>/dev/null #supress curl output
     
     status="$(echo $response | grep -o 'SUCCESS\|FAILED\|Booking Pending')"
@@ -125,14 +125,14 @@ function cancel {
     printf ${cyn}"Finding active bookings...\n"${end}
     for i in $(seq 1 ${#ROOM_CANCEL[@]} ); do
     {
-        response="$(curl --request POST --user $user:$password $LIST_URL/${ROOM_CANCEL[$i-1]})"
+        response="$(curl --request POST --user "$user:$password" $LIST_URL/${ROOM_CANCEL[$i-1]})"
     }&>/dev/null #supress curl output
     data="$(echo $response | grep -E -o "$CANCEL_REGEX")"
     
     if [[ ! -z $data ]]; then
         dataString="Cancel=$data"
         {
-            res="$(curl --data "$dataString" --user $user:$password $LIST_URL/${ROOM_CANCEL[$i-1]})"
+            res="$(curl --data "$dataString" --user "$user:$password" $LIST_URL/${ROOM_CANCEL[$i-1]})"
         }&>/dev/null #supress curl output
         printf ${yel}"Room $i booking canceled\n"${end}
     fi
