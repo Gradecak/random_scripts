@@ -59,7 +59,7 @@ function init {
     echo "firstname=$firstname" >> $CONFIG
     echo "surname=$surname" >> $CONFIG
     echo "year=$year" >> $CONFIG
-    chmod 000 $CONFIG
+    chmod 700 $CONFIG
 }
 
 #fetch the naame, surname and year of the logged in student (used for booking and cancelling requests)
@@ -67,12 +67,12 @@ function get_name {
     {
         page="$(curl --user "$user:$password" $LIST_URL/${ROOM_BOOKING[0]})"
         text="$(awk '{gsub("<[^>]*>", "")}1' <<< $page)"
-        fullname=($(echo $text | grep -E -o "$NAME_REGEX"))
+        details=($(echo $text | grep -E -o "$NAME_REGEX"))
     }&>/dev/null #supress curl output
     
-    firstname=${fullname[0]}
-    surname=${fullname[1]}
-    status=${fullname[2]}
+    firstname=${details[0]}
+    surname=${details[1]}
+    status=${details[2]}
     year="$(echo $status | sed 's/.*\[//;s/\].*//;')"
     echo $year
 }
@@ -141,10 +141,7 @@ function cancel {
 }
 
 function help {
-    printf ${grn}"Usage:\n
-                    ./glassrooms list\n
-                    ./glassrooms book <room #> <start_time> <end_time>\n
-                    ./glassrooms cancel\n\n"${end}
+    printf ${grn}"Usage:\n ./glassrooms list\n ./glassrooms book <room #(1-8)> <start_time(1-23)> <end_time(1-23>\n ./glassrooms cancel\n\n"${end}
 }
 
 function main { 
