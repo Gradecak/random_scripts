@@ -1,14 +1,15 @@
-#CONSTANTS
-DELIMITER="|"
-DATE=`date +%Y%m%d`
+#CONSTANTS  
+MONTHS=(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec)
+YEAR=$(date +%-Y)
 HOUR=$(date +%-H)
 MINUTES=$(date +%-M)
 DAY=$(date +%-d)
 MONTH=$(date +%-m)
+DATE="$DAY ${MONTHS[$MONTH-1]} $YEAR"
 CONFIG="$HOME/.glassrooms/config.cfg"
 #Dirty dirty regex for matching string like 25 Aug 2016 (Thursday):11:00-13:00 Hank Hill 
 #Remember to use grep with the -E flag to ensure it actually works
-REGEX='\d\d* (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \((Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\):\d{2}:\d{2}-\d{2}:\d{2} [A-Z][a-z]+(\s|,)[A-Z][a-z]{1,19}'
+REGEX='\d\d* (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \((Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\):\d{2}:\d{2}-\d{2}:\d{2} ([A-Z][a-z]+(\s))+'
 NAME_REGEX="[A-Z]?[a-z ,.'-]+ [A-Z]?[a-z ,.'-]+ \[[a-z]{2}\d\]"
 CANCEL_REGEX="\d{8}\|(([01]?[0-9]|2[0-3]):[0-5][0-9])-(([01]?[0-9]|2[0-3]):[0-5][0-9])[a-z,\|]+[A-Z]?[a-z ,.'-]+[A-Z]?[a-z ,.'-]+\|[a-z]{2}\d\|"
 
@@ -59,6 +60,7 @@ function init {
     echo "firstname=$firstname" >> $CONFIG
     echo "surname=$surname" >> $CONFIG
     echo "year=$year" >> $CONFIG
+    #set config file permissions so its only accessible by the user who created it (and root)
     chmod 700 $CONFIG
 }
 
@@ -66,10 +68,10 @@ function init {
 function get_name {
     {
         page="$(curl --user "$user:$password" $LIST_URL/${ROOM_BOOKING[0]})"
-        text="$(awk '{gsub("<[^>]*>", "")}1' <<< $page)"
-        details=($(echo $text | grep -E -o "$NAME_REGEX"))
     }&>/dev/null #supress curl output
-    
+
+    text="$(awk '{gsub("<[^>]*>", "")}1' <<< $page)"
+    details=($(echo $text | grep -E -o "$NAME_REGEX"))
     firstname=${details[0]}
     surname=${details[1]}
     status=${details[2]}
@@ -78,17 +80,18 @@ function get_name {
 }
 
 # return the string of bookings for the room
-# $1 room from the rooms array
+# $1 = room from the rooms array
 function fetch_list {    
     {
     page="$(curl --user "$user:$password" $LIST_URL/$1)" 
     }&>/dev/null #supress curl output
 
     text="$(awk '{gsub("<[^>]*>", "")}1' <<< $page)"
-    book="$(echo $text |  grep -E -o "$REGEX")"
+    book="$(echo $text |  grep -E -o "$REGEX" | grep "$DATE")"
     echo "$book"
 }
 
+#list the upcoming bookings for all of the glassrooms
 function list {
     for i in $(seq 1 ${#ROOMS[@]} ); do
        printf ${yel}"Room $i"${end}"\n"
@@ -100,7 +103,6 @@ function list {
 function book { 
     dataString="StartTime=$2&EndTime=$3&Fullname=$firstname&Status=$year&StartDate=$DAY&StartMonth=$MONTH&StartYear=1"
     {
-        echo "$dataString"
         response="$(curl --data "$dataString" --user "$user:$password" $LIST_URL/${ROOM_BOOKING[$1 -1]})"
     }&>/dev/null #supress curl output
     
@@ -118,7 +120,7 @@ function book {
         *)
             printf "Uhhh should not be here?\n"
             ;;
-        esac
+    esac
 }
 
 function cancel {
@@ -140,13 +142,14 @@ function cancel {
     printf ${cyn}"Done\n"${end}
 }
 
-function help {
-    printf ${grn}"Usage:\n ./glassrooms list\n ./glassrooms book <room #(1-8)> <start_time(1-23)> <end_time(1-23>\n ./glassrooms cancel\n\n"${end}
+#print usage for script
+function usage {
+    printf ${grn}"Usage:\n ./glassrooms list\n ./glassrooms book <room #(1-8)> <start_time(0-23)> <end_time(0-23>\n ./glassrooms cancel\n\n"${end}
 }
 
 function main { 
     read_config 
-    printf ${mag}"Current time: $HOUR:$MINUTES\nCurrent Date: $DAY/$MONTH\n"${end}
+    printf ${mag}"Current time: $HOUR:$MINUTES\nCurrent Date: $DATE\n"${end}
     arg_len="${#BASH_ARGV[@]}"
     if [ $arg_len -lt 1 ]; then
         help
@@ -157,7 +160,7 @@ function main {
         elif [ "${BASH_ARGV[0]}" = 'cancel' ]; then
             cancel
         else
-            help
+            usage
         fi
     elif [ $arg_len -eq 4 ]; then
         book "${BASH_ARGV[2]}" "${BASH_ARGV[1]}" "${BASH_ARGV[0]}"
