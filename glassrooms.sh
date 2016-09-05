@@ -48,6 +48,8 @@ function read_config {
 
 function init {
     printf ${red}"config not found... Initialising config at $CONFIG \n"${end}
+    printf ${red}"WARNING: your username and password will be stored in the home folder, anyone in the sudoers file can access it.
+    Proceed with caution!! :WARNING\n"
     mkdir ~/.glassrooms
     touch "$CONFIG"
     printf "SCSS Username:"
@@ -69,7 +71,6 @@ function get_name {
     {
         page="$(curl --user "$user:$password" $LIST_URL/${ROOM_BOOKING[0]})"
     }&>/dev/null #supress curl output
-
     text="$(awk '{gsub("<[^>]*>", "")}1' <<< $page)"
     details=($(echo $text | grep -E -o "$NAME_REGEX"))
     firstname=${details[0]}
@@ -129,12 +130,12 @@ function cancel {
     {
         response="$(curl --request POST --user "$user:$password" $LIST_URL/${ROOM_CANCEL[$i-1]})"
     }&>/dev/null #supress curl output
-    data="$(echo $response | grep -E -o "$CANCEL_REGEX")"
+    cancelValue="$(echo $response | grep -E -o "$CANCEL_REGEX")"
     
     if [[ ! -z $data ]]; then
-        dataString="Cancel=$data"
+        cancelString="Cancel=$cancelValue"
         {
-            res="$(curl --data "$dataString" --user "$user:$password" $LIST_URL/${ROOM_CANCEL[$i-1]})"
+            res="$(curl --data "$cancelString" --user "$user:$password" $LIST_URL/${ROOM_CANCEL[$i-1]})"
         }&>/dev/null #supress curl output
         printf ${yel}"Room $i booking canceled\n"${end}
     fi
@@ -150,10 +151,11 @@ function usage {
 function main { 
     read_config 
     printf ${mag}"Current time: $HOUR:$MINUTES\nCurrent Date: $DATE\n"${end}
-    arg_len="${#BASH_ARGV[@]}"
+     arg_len="${#BASH_ARGV[@]}"
+    printf "%s \n" $arg_len
     if [ $arg_len -lt 1 ]; then
-        help
-        exit
+        usage
+        exit 1
     elif [ $arg_len -eq 1 ]; then
         if [ "${BASH_ARGV[0]}" = "list" ]; then
             list
