@@ -7,11 +7,13 @@ DAY=$(date +%-d)
 MONTH=$(date +%-m)
 DATE="$DAY ${MONTHS[$MONTH-1]} $YEAR"
 CONFIG="$HOME/.glassrooms/config.cfg"
+
 #Dirty dirty regex for matching string like 25 Aug 2016 (Thursday):11:00-13:00 Hank Hill 
 #Remember to use grep with the -E flag to ensure it actually works
 REGEX='\d\d* (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \((Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\):\d{2}:\d{2}-\d{2}:\d{2} ([A-Z][a-z]+(\s))+'
 NAME_REGEX="[A-Z]?[a-z ,.'-]+ [A-Z]?[a-z ,.'-]+ \[[a-z]{2}\d\]"
 CANCEL_REGEX="\d{8}\|(([01]?[0-9]|2[0-3]):[0-5][0-9])-(([01]?[0-9]|2[0-3]):[0-5][0-9])[a-z,\|]+[A-Z]?[a-z ,.'-]+[A-Z]?[a-z ,.'-]+\|[a-z]{2}\d\|"
+TIME_REGEX="\d{2}:\d{2}-\d{2}:\d{2}"
 
 #END POINTS
 ROOMS=('sgmr1.pl' 'sgmr2.pl' 'sgmr3.pl' 'sgmr4.pl' 'sgmr5.pl' 'sgmr6.pl' 'sgmr7.pl' 'sgmr8.pl')
@@ -46,17 +48,19 @@ function read_config {
     fi
 }
 
+#initialise the config file for the script (in order to speed up future use)
 function init {
     printf ${red}"config not found... Initialising config at $CONFIG \n"${end}
-    printf ${red}"WARNING: your username and password will be stored in the home folder, anyone in the sudoers file can access it.
-    Proceed with caution!! :WARNING\n"
+    printf ${red}"WARNING: your username and password will be stored in the home folder, anyone in the sudoers file can access it. Proceed with caution!! :WARNING\n"${end}
     mkdir ~/.glassrooms
     touch "$CONFIG"
     printf "SCSS Username:"
     read user
     printf "SCSS Password:"
     read -s password
+    grep_flag="$(set_grep_flag)"
     get_name
+    echo "grep_flag=$grep_flag" >> $CONFIG
     echo "user=$user" >> $CONFIG
     echo "password=$password" >> $CONFIG
     echo "firstname=$firstname" >> $CONFIG
@@ -72,12 +76,11 @@ function get_name {
         page="$(curl --user "$user:$password" $LIST_URL/${ROOM_BOOKING[0]})"
     }&>/dev/null #supress curl output
     text="$(awk '{gsub("<[^>]*>", "")}1' <<< $page)"
-    details=($(echo $text | grep -E -o "$NAME_REGEX"))
+    details=($(echo $text | grep "-$grep_flag" -o "$NAME_REGEX"))
     firstname=${details[0]}
     surname=${details[1]}
     status=${details[2]}
     year="$(echo $status | sed 's/.*\[//;s/\].*//;')"
-    echo $year
 }
 
 # return the string of bookings for the room
@@ -88,7 +91,7 @@ function fetch_list {
     }&>/dev/null #supress curl output
 
     text="$(awk '{gsub("<[^>]*>", "")}1' <<< $page)"
-    book="$(echo $text |  grep -E -o "$REGEX" | grep "$DATE")"
+    book="$(echo $text |  grep "-$grep_flag" -o "$REGEX" | grep "$DATE")"
     echo "$book"
 }
 
@@ -96,9 +99,33 @@ function fetch_list {
 function list {
     for i in $(seq 1 ${#ROOMS[@]} ); do
        printf ${yel}"Room $i"${end}"\n"
-       booking="$(fetch_list ${ROOMS[$i-1]})"
-       printf ${red}'%s\n'${end} "${booking}"
+       bookings="$(fetch_list ${ROOMS[$i-1]})"
+       printf ${red}'%s\n'${end} "${bookings}"
     done
+}
+
+function available {
+    available=""
+    for i in $(seq 1 ${#ROOMS[@]} ); do
+        bookings="$(fetch_list ${ROOMS[$i-1]})"
+        one_hour="$HOUR:00-$(($HOUR+1)):00"
+        two_hour="$HOUR:00-$(($HOUR+2)):00"
+        taken="$(echo $bookings | grep -o "-$grep_flag" "$TIME_REGEX")"
+        echo $taken
+
+        #if booked for one hour 
+        if [[ $taken != $two_hour && $taken = $one_hour ]]; then
+            echo one_hour
+            available=$available"Room $i) $(($HOUR+1)):00-$(($HOUR+2)):00,\n"
+        
+        elif [[ $taken = $two_hour && $taken != $one_hour ]]; then
+            available=$available"Room $i) "
+        elif [[ $taken != $two_hour ]]; then
+            echo two_hours
+            available=$available"Room $i) $two_hour,\n" 
+        fi
+    done
+    printf  ${yel}"Currently available rooms: %s ${end}\n"${red}"$available"${end}
 }
 
 function book { 
@@ -116,7 +143,7 @@ function book {
             printf ${red}"Booking failed\n"${end}
             ;;
         "Booking Pending")
-            printf ${yel}'Too many active bookings\n'${end}
+            printf ${yel}"Too many active bookings\n"${end}
             ;;
         *)
             printf "Uhhh should not be here?\n"
@@ -130,9 +157,8 @@ function cancel {
     {
         response="$(curl --request POST --user "$user:$password" $LIST_URL/${ROOM_CANCEL[$i-1]})"
     }&>/dev/null #supress curl output
-    cancelValue="$(echo $response | grep -E -o "$CANCEL_REGEX")"
-    
-    if [[ ! -z $data ]]; then
+    cancelValue="$(echo $response | grep "-$grep_flag" -o "$CANCEL_REGEX")"
+    if [[ ! -z $cancelValue ]]; then
         cancelString="Cancel=$cancelValue"
         {
             res="$(curl --data "$cancelString" --user "$user:$password" $LIST_URL/${ROOM_CANCEL[$i-1]})"
@@ -145,14 +171,26 @@ function cancel {
 
 #print usage for script
 function usage {
-    printf ${grn}"Usage:\n ./glassrooms list\n ./glassrooms book <room #(1-8)> <start_time(0-23)> <end_time(0-23>\n ./glassrooms cancel\n\n"${end}
+    printf ${grn}"Usage:\n ./glassrooms list\n ./glassrooms book <room #(1-8)> <start_time(0-23)> <end_time(0-23)>\n ./glassrooms cancel\n\n"${end}
+}
+
+#set the correct grep flag to be used in order to alow for perl-like regexps syntax
+#the flag differs between Os X and Linux 
+#Flag = -P for linux
+#     = -E for Os X
+function set_grep_flag {
+    env="$(uname -s)"
+    if [[ $env = "Linux" ]]; then
+        echo "P"
+    elif [[ $env = "Darwin" ]]; then
+        echo "E"
+    fi
 }
 
 function main { 
     read_config 
     printf ${mag}"Current time: $HOUR:$MINUTES\nCurrent Date: $DATE\n"${end}
-     arg_len="${#BASH_ARGV[@]}"
-    printf "%s \n" $arg_len
+    arg_len="${#BASH_ARGV[@]}"
     if [ $arg_len -lt 1 ]; then
         usage
         exit 1
@@ -161,6 +199,8 @@ function main {
             list
         elif [ "${BASH_ARGV[0]}" = 'cancel' ]; then
             cancel
+        elif [ "${BASH_ARGV[0]}" = 'available' ]; then
+            available
         else
             usage
         fi
