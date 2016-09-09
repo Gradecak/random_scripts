@@ -116,6 +116,7 @@ function get_dates {
 #$2 = CURL paramaters
 #$3 = Strip HTML tags from returned page
 function fetch_page_data {
+    printf "%s\n\n\n%s" "${yel}$2${end}" "${red}$1${end}"
     { page="$(curl $2 --user "$user:$password" $1)"; }&>/dev/null #supress curl output
     #if the strip html flag is set
     if [[ ! -z $3 ]]; then
@@ -193,14 +194,13 @@ function book {
 function cancel {
     printf "${cyn}Finding active bookings...\n${end}"
     for i in $(seq 1 ${#ROOM_CANCEL[@]} ); do
-        response="$(fetch_page_data $BASE_URL/${ROOM_CANCEL[$i-1]} "--request POST")"
+        response="$(fetch_page_data $BASE_URL${ROOM_CANCEL[$i -1]} "--request POST")"
         cancelValue="$(echo $response | grep "-$grep_flag" -o "$CANCEL_REGEX")"
         #if the cancel string exists (ie a booking exists for logged in user)
         if [[ ! -z $cancelValue ]]; then
             cancelString="Cancel=$cancelValue"
-            echo $cancelString
-            res="$(fetch_page_data $BASE_URL/${ROOM_CANCEL[$i-1]} "--data $cancelString")"
-            echo $res
+            res="$(fetch_page_data $BASE_URL${ROOM_CANCEL[$i -1]} "--data "Cancel=$cancelValue"")"
+            # echo $res
             printf "${yel}Room $i booking canceled\n${end}"
         fi
     done
