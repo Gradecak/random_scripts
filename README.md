@@ -18,7 +18,7 @@ And you're good to go!
 
 The first time you run the script you will be prompted for your scss username and password. this information will be stored at `~/.glassrooms/config.cfg` but will only be accessible by the user that ran the script and root.
 
-__Therefore take care when running the script on servers where you dont know who has root access__
+<span style="background-color:red;">___Therefore take care when running the script on servers where you dont know who has root access___</span>
 
 ### Recommended setup
 i recommend adding some aliases to your bash_profile or bashrc as follows:
