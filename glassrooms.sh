@@ -115,11 +115,12 @@ function get_dates {
         IFS=$'\n' #set the delimiter for converting string to array to be '\n' character
         all_dates=($(echo "$1" | grep "-$grep_flag"o "$BOOKING_DATE_REGEX"))
         unset IFS #scrubidy scrub scrub
-        dates="$(get_dates "$1" ${all_dates[@]:(-1)})"
+        dates="$(get_dates "$1" "${all_dates[@]:(-1)}")"
+        echo "$dates"
     else
         dates="$(echo "$upcoming" | grep "-$grep_flag"o "$BOOKING_DATE_REGEX")"
+        echo "$dates"
     fi
-    echo "$dates"
 }
 #return -> stripped data response for requested page
 # PARAMS:
