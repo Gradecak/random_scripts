@@ -1,4 +1,3 @@
-#CONSTANTS
 MONTHS=(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec)
 YEAR=$(date +%-Y)
 HOUR=$(date +%-H)
@@ -84,7 +83,7 @@ function get_name {
     year="$(echo $status | sed 's/.*\[//;s/\].*//;')"
 }
 #set the correct grep flag to be used in order to alow for perl-like regexps syntax
-#the flag differs between Os X and Linux
+#the flag differs between macOS and Linux
 #Flag = -P for linux
 #     = -E for Os X
 function set_grep_flag {
@@ -98,13 +97,13 @@ function set_grep_flag {
 # return -> string of bookings for the room for the specified dates (seperated by \n)
 # PARAMS:
 # $1 = data for the page
-# $2 = Start date ->  in the form d Mmm yyyy (9 Sep 2016)
+# $2 = Start date ->  in the form d Mmm yyyy (11 Sep 2016)
 # $3 = End date "" "" "" "" "" ... (if end date is not supplied it will find all of the bookings from the start dates)
 function get_bookings {
     bookings="$(echo "$1" | grep "-$grep_flag"o "$2(.*)$3" | grep "-$grep_flag"o "$BOOKING_REGEX")"
     echo "$bookings"
 }
-#Return a string of \n seperated dates in the format of d Mmm yyyy (1 Sep 2006)
+#Return a string of \n seperated dates in the format of d Mmm yyyy (11 Sep 2001)
 #$1 a string of data containing dates of the d Mmm yyyy format
 function get_dates {
     upcoming="$(echo "$1" | grep "-$grep_flag"o "$DATE.*" | grep "-$grep_flag"o "$BOOKING_DATE_REGEX")"
@@ -116,7 +115,6 @@ function get_dates {
 #$2 = CURL paramaters
 #$3 = Strip HTML tags from returned page
 function fetch_page_data {
-    printf "%s\n\n\n%s" "${yel}$2${end}" "${red}$1${end}"
     { page="$(curl $2 --user "$user:$password" $1)"; }&>/dev/null #supress curl output
     #if the strip html flag is set
     if [[ ! -z $3 ]]; then
@@ -138,10 +136,11 @@ function list {
             for ((j=0; j < ${#dates[@]}-1; j++)); do
                 #fetch the bookings for dates[j]
                 bookings=($(get_bookings  $raw_data ${dates[$j]} ${dates[$j+1]}))
-                printf "%s\n%s\n" "${blu}${dates[$j]}${end}" "${red}${bookings[@]}${end}"
+                printf "%s:\n\t%s\n" "${blu}${dates[$j]}${end}" "${red}${bookings[@]}${end}"
             done
+            #post peeling
             bookings=($(get_bookings  $raw_data ${dates[@]:(-1)}))
-            printf "%s\n%s\n" "${blu}${dates[@]:(-1)}${end}" "${red}${bookings[@]}${end}"
+            printf "%s:\n\t%s\n" "${blu}${dates[@]:(-1)}${end}" "${red}${bookings[@]}${end}"
         fi
     done
     unset IFS #cleaning up after myself
@@ -195,12 +194,13 @@ function cancel {
     printf "${cyn}Finding active bookings...\n${end}"
     for i in $(seq 1 ${#ROOM_CANCEL[@]} ); do
         response="$(fetch_page_data $BASE_URL${ROOM_CANCEL[$i -1]} "--request POST")"
+        #scrape the data required to cancel the room from the data recieved
         cancelValue="$(echo $response | grep "-$grep_flag" -o "$CANCEL_REGEX")"
         #if the cancel string exists (ie a booking exists for logged in user)
         if [[ ! -z $cancelValue ]]; then
             cancelString="Cancel=$cancelValue"
-            res="$(fetch_page_data $BASE_URL${ROOM_CANCEL[$i -1]} "--data "Cancel=$cancelValue"")"
-            # echo $res
+            curl --data "$cancelString" --user $user:$password $BASE_URL${ROOM_CANCEL[$i -1]}
+            #not concerned with result of the curl request. Just hoping it cancels...
             printf "${yel}Room $i booking canceled\n${end}"
         fi
     done
@@ -210,11 +210,11 @@ function cancel {
 #print usage for script
 function usage {
     printf "${grn}Usage:
-     ./glassrooms list
-     ./glassrooms book <room #(1-8)> <start_time(0-23)> <end_time(0-23)>
-     ./glassrooms cancel
-     ./glassrooms available
-     ${end}"
+    <required param> [optional param]
+    ./glassrooms list
+    ./glassrooms book <room #(1-8)> <start_time(0-23)> <end_time(0-23)>
+    ./glassrooms cancel
+    ./glassrooms available\n${end}"
 }
 function main {
     read_config
