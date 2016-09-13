@@ -74,7 +74,7 @@ function init {
 
 #fetch the naame, surname and year of the logged in student (used for booking requests)
 function get_name {
-    raw_data="$(fetch_page_data $BASE_URL/${ROOM_BOOKING[0]} '' 1)"
+    raw_data="$(fetch_page_data $BASE_URL${ROOM_BOOKING[0]} '' 1)"
     details=($(echo $raw_data | grep "-$grep_flag" -o "$NAME_REGEX"))
     firstname=${details[0]}
     surname=${details[1]}
@@ -103,11 +103,23 @@ function get_bookings {
     bookings="$(echo "$1" | grep "-$grep_flag"o "$2(.*)$3" | grep "-$grep_flag"o "$BOOKING_REGEX")"
     echo "$bookings"
 }
-#Return a string of \n seperated dates in the format of d Mmm yyyy (11 Sep 2001)
+#return -> string of \n seperated dates in the format of d Mmm yyyy (11 Sep 2001)
 #$1 a string of data containing dates of the d Mmm yyyy format
+#$2 date to begin search from
 function get_dates {
-    upcoming="$(echo "$1" | grep "-$grep_flag"o "$DATE.*" | grep "-$grep_flag"o "$BOOKING_DATE_REGEX")"
-    echo "$upcoming"
+    upcoming="$(echo "$1" | grep "-$grep_flag"o "$2.*")"
+    dates=""
+    #if the date we began search from does not have any bookings the above matching will return blank
+    #so we find the previous date that we know for a fact has a booking and try again
+    if [ -z "$upcoming" ]; then
+        IFS=$'\n' #set the delimiter for converting string to array to be '\n' character
+        all_dates=($(echo "$1" | grep "-$grep_flag"o "$BOOKING_DATE_REGEX"))
+        unset IFS #scrubidy scrub scrub
+        dates="$(get_dates "$1" ${all_dates[@]:(-1)})"
+    else
+        dates="$(echo "$upcoming" | grep "-$grep_flag"o "$BOOKING_DATE_REGEX")"
+    fi
+    echo "$dates"
 }
 #return -> stripped data response for requested page
 # PARAMS:
@@ -128,54 +140,53 @@ function fetch_page_data {
 function list {
     IFS=$'\n' #set the delimiter for converting string to array to be '\n' character
     for i in $(seq 1 ${#ROOMS[@]} ); do
-        raw_data="$(fetch_page_data $BASE_URL/${ROOMS[$i-1]} '' 1)"
-        dates=($(get_dates $raw_data))
+        raw_data="$(fetch_page_data $BASE_URL${ROOMS[$i-1]} '' 1)"
+        dates=($(get_dates $raw_data $DATE))
         #if there are upcoming bookings, otherwise skip
         if [[ ! -z $dates ]]; then
             printf ${yel}"Room $i"${end}"\n"
             for ((j=0; j < ${#dates[@]}-1; j++)); do
                 #fetch the bookings for dates[j]
                 bookings=($(get_bookings  $raw_data ${dates[$j]} ${dates[$j+1]}))
-                printf "%s:\n\t%s\n" "${blu}${dates[$j]}${end}" "${red}${bookings[@]}${end}"
+                printf "%s:\n" "${dates[$j]}"
+                for book in "${bookings[@]}"; do
+                    printf "\t%s\n" "${red}$book${end}"
+                done
             done
             #post peeling
             bookings=($(get_bookings  $raw_data ${dates[@]:(-1)}))
-            printf "%s:\n\t%s\n" "${blu}${dates[@]:(-1)}${end}" "${red}${bookings[@]}${end}"
+            printf "%s:\n" "${dates[@]:(-1)}"
+            for book in "${bookings[@]}"; do
+                printf "\t%s\n" "${red}$book${end}"
+            done
         fi
     done
     unset IFS #cleaning up after myself
 }
-
-function available {
-    # available=""
-    # tomorrow="$(($DAY+1)) ${MONTHS[$MONTH-1]} $YEAR"
-    # current_hour="$HOUR:00-$(($HOUR+1)):00" #booked for current hour
-    # two_hours="$HOUR:00-$(($HOUR+2)):00" #booked for current hour + next hour
-    # next_hour="$(($HOUR+1)):00-$(($HOUR+2)):00" #booked for next hour
-    # next_two_hours="$(($HOUR+1)):00-$(($HOUR+3)):00" #bookef for next 2 hours
-
-    # printf "${cyn}Fetching Data...${end}\n"
-    # IFS=$'\n' #set the delimiter for converting string to array to be '\n' character
-    # #for every room
-    # for i in $(seq 1 ${#ROOMS[@]} ); do
-    #     raw_data="$(fetch_page_data $BASE_URL/${ROOMS[$i-1]} '' 1)"
-    #     bookings=($(get_bookings $raw_data $DATE $tomorrow)) #get bookings between today and tomorrow
-    #     for i in ${bookings[@]};  do
-
-    #     done
-    # done
-    # unset IFS #cleanup on isle 4
-    printf "\nCurrently available rooms:%s\n""$available"
-}
-
-
+#send a POST booking request for the requested room
+#PARAMS:
+#array of arguments [startTime, endTime, day, month] (day and month are optional)
 function book {
-    dataString="StartTime=$2&EndTime=$3&Fullname=$firstname&Status=$year&StartDate=$DAY&StartMonth=$MONTH&StartYear=1"
-    response="$(fetch_page_data $BASE_URL/${ROOM_BOOKING[$1 -1]} "--data $dataString")"
+    # declare -a argss=("${!1}") #create the args array from the passed paramater
+    argss=("$@")
+    room=${argss[@]:(-1)}
+    start=${argss[@]:(-2):1}
+    end=${argss[@]:(-3):1}
+    day=$DAY
+    month=$MONTH
+    arg_len="${#argss[@]}"
+    if [ $arg_len -eq 5 ]; then
+        day=${argss[1]}
+        month=${argss[0]}
+    elif [ $arg_len -eq 4 ]; then
+        day=${argss[0]}
+    fi
+    dataString="StartTime=$start&EndTime=$end&Fullname=$firstname&Status=$year&StartDate=$day&StartMonth=$month&StartYear=1"
+    response="$(fetch_page_data $BASE_URL${ROOM_BOOKING[$room -1]} "--data $dataString")"
     status="$(echo $response | grep -o 'SUCCESS\|FAILED\|Booking Pending')"
     case $status in
         "SUCCESS")
-            printf ${grn}"Booking successfull\n"${end}
+            printf "${grn}Booking successfull\n${end}"
             ;;
         "FAILED")
             printf ${red}"Booking failed\n"${end}
@@ -192,14 +203,14 @@ function book {
 #Finds all the active bookings, scrape the cancelation string and submit it to the server
 function cancel {
     printf "${cyn}Finding active bookings...\n${end}"
-    for i in $(seq 1 ${#ROOM_CANCEL[@]} ); do
+    for i in $(seq 1 ${#ROOM_CANCEL[@]} ); do #for each room
         response="$(fetch_page_data $BASE_URL${ROOM_CANCEL[$i -1]} "--request POST")"
         #scrape the data required to cancel the room from the data recieved
         cancelValue="$(echo $response | grep "-$grep_flag" -o "$CANCEL_REGEX")"
         #if the cancel string exists (ie a booking exists for logged in user)
         if [[ ! -z $cancelValue ]]; then
             cancelString="Cancel=$cancelValue"
-            curl --data "$cancelString" --user $user:$password $BASE_URL${ROOM_CANCEL[$i -1]}
+            { curl --data "$cancelString" --user $user:$password $BASE_URL${ROOM_CANCEL[$i -1]}; }&>/dev/null #supress curl output
             #not concerned with result of the curl request. Just hoping it cancels...
             printf "${yel}Room $i booking canceled\n${end}"
         fi
@@ -209,34 +220,38 @@ function cancel {
 
 #print usage for script
 function usage {
-    printf "${grn}Usage:
-    <required param> [optional param]
-    ./glassrooms list
-    ./glassrooms book <room #(1-8)> <start_time(0-23)> <end_time(0-23)>
-    ./glassrooms cancel
-    ./glassrooms available\n${end}"
+    printf "Usage:
+    ${red}<required param>${end} ${yel}[optional param]${end}
+    ${grn}./glassrooms list
+    ./glassrooms book${end} ${red}<room #(1-8)> <start_time(0-23)> <end_time(0-23)>${end} ${yel}[day(1-31)] [month(1-12)]${end}
+    ${grn}./glassrooms cancel\n${end}"
 }
+
 function main {
     read_config
     printf "${mag}Time: $HOUR:$MINUTES | Date: $DATE\n${end}"
     arg_len="${#BASH_ARGV[@]}"
-    if [ $arg_len -lt 1 ]; then
-        usage
-        exit 1
-    elif [ $arg_len -eq 1 ]; then
-        if [ "${BASH_ARGV[0]}" = "list" ]; then
+    args=( "${BASH_ARGV[@]}" )
+    #parse arguments
+    case ${args[@]:(-1)} in
+        'list')
             list
-        elif [ "${BASH_ARGV[0]}" = 'cancel' ]; then
+            ;;
+        'cancel')
             cancel
-        elif [ "${BASH_ARGV[0]}" = 'available' ]; then
-            available
-        else
+            ;;
+        'book')
+            #minimum 3 paramaters required for booking maximum 5
+            if [[ $arg_len -lt 4 || $arg_len -gt 6 ]]; then
+                usage
+            else
+                unset args[${#args[@]}-1] #remove 'booking' string from array
+                book "${args[@]}"
+            fi
+            ;;
+        *)
             usage
-        fi
-    elif [ $arg_len -eq 4 ]; then
-        book "${BASH_ARGV[2]}" "${BASH_ARGV[1]}" "${BASH_ARGV[0]}"
-    fi
+    esac
 }
-
 #runnn Forest ruuuuun
 main
