@@ -16,9 +16,9 @@ CANCEL_REGEX="\d{8}\|(([01]?[0-9]|2[0-3]):[0-5][0-9])-(([01]?[0-9]|2[0-3]):[0-5]
 TIME_REGEX="\d{2}:\d{2}-\d{2}:\d{2}"
 
 #END POINTS
-ROOMS=('sgmr1.pl' 'sgmr2.pl' 'sgmr3.pl' 'sgmr4.pl' 'sgmr5.pl' 'sgmr6.pl' 'sgmr7.pl' 'sgmr8.pl')
-ROOM_BOOKING=('sgmr1.request.pl' 'sgmr2.request.pl' 'sgmr3.request.pl' 'sgmr4.request.pl' 'sgmr5.request.pl' 'sgmr6.request.pl' 'sgmr7.request.pl' 'sgmr8.request.pl')
-ROOM_CANCEL=('sgmr1.cancel.pl' 'sgmr2.cancel.pl' 'sgmr3.cancel.pl' 'sgmr4.cancel.pl' 'sgmr5.cancel.pl' 'sgmr6.cancel.pl' 'sgmr7.cancel.pl' 'sgmr8.cancel.pl')
+ROOMS=('sgmr1.pl' 'sgmr2.pl' 'sgmr3.pl' 'sgmr4.pl' 'sgmr5.pl' 'sgmr6.pl' 'sgmr7.pl' 'sgmr8.pl' 'sgmr9.pl')
+ROOM_BOOKING=('sgmr1.request.pl' 'sgmr2.request.pl' 'sgmr3.request.pl' 'sgmr4.request.pl' 'sgmr5.request.pl' 'sgmr6.request.pl' 'sgmr7.request.pl' 'sgmr8.request.pl' 'sgmr9.request.pl')
+ROOM_CANCEL=('sgmr1.cancel.pl' 'sgmr2.cancel.pl' 'sgmr3.cancel.pl' 'sgmr4.cancel.pl' 'sgmr5.cancel.pl' 'sgmr6.cancel.pl' 'sgmr7.cancel.pl' 'sgmr8.cancel.pl' 'sgmr9.cancel.pl')
 
 #list rooms URL
 BASE_URL='https://www.scss.tcd.ie/cgi-bin/webcal/sgmr/'
@@ -107,19 +107,22 @@ function get_bookings {
 #$1 a string of data containing dates of the d Mmm yyyy format
 #$2 date to begin search from
 function get_dates {
-    upcoming="$(echo "$1" | grep "-$grep_flag"o "$2.*")"
-    dates=""
-    #if the date we began search from does not have any bookings the above matching will return blank
-    #so we find the previous date that we know for a fact has a booking and try again
-    if [ -z "$upcoming" ]; then
-        IFS=$'\n' #set the delimiter for converting string to array to be '\n' character
-        all_dates=($(echo "$1" | grep "-$grep_flag"o "$BOOKING_DATE_REGEX"))
-        unset IFS #scrubidy scrub scrub
-        dates="$(get_dates "$1" "${all_dates[@]:(-1)}")"
-        echo "$dates"
-    else
-        dates="$(echo "$upcoming" | grep "-$grep_flag"o "$BOOKING_DATE_REGEX")"
-        echo "$dates"
+    if [[ ! -z $1 ]]; then
+        upcoming="$(echo "$1" | grep "-$grep_flag"o "$2.*")"
+        # printf "%s\n"$upcoming
+        dates=""
+        #if the date we began search from does not have any bookings the above matching will return blank
+        #so we find the previous date that we know for a fact has a booking and try again
+        if [ -z "$upcoming" ]; then
+            IFS=$'\n' #set the delimiter for converting string to array to be '\n' character
+            all_dates=($(echo "$1" | grep "-$grep_flag"o "$BOOKING_DATE_REGEX"))
+            unset IFS #scrubidy scrub scrub
+            dates="$(get_dates "$1" "${all_dates[@]:(-1)}")"
+            echo "$dates"
+        else
+            dates="$(echo "$upcoming" | grep "-$grep_flag"o "$BOOKING_DATE_REGEX")"
+            echo "$dates"
+        fi
     fi
 }
 #return -> stripped data response for requested page
@@ -142,7 +145,7 @@ function list {
     IFS=$'\n' #set the delimiter for converting string to array to be '\n' character
     for i in $(seq 1 ${#ROOMS[@]} ); do
         raw_data="$(fetch_page_data $BASE_URL${ROOMS[$i-1]} '' 1)"
-        dates=($(get_dates $raw_data $DATE))
+        dates=($(get_dates "$raw_data" "$DATE"))
         #if there are upcoming bookings, otherwise skip
         if [[ ! -z $dates ]]; then
             printf ${yel}"Room $i"${end}"\n"
@@ -224,7 +227,7 @@ function usage {
     printf "Usage:
     ${red}<required param>${end} ${yel}[optional param]${end}
     ${grn}./glassrooms list
-    ./glassrooms book${end} ${red}<room #(1-8)> <start_time(0-23)> <end_time(0-23)>${end} ${yel}[day(1-31)] [month(1-12)]${end}
+    ./glassrooms book${end} ${red}<room #(1-9)> <start_time(0-23)> <end_time(0-23)>${end} ${yel}[day(1-31)] [month(1-12)]${end}
     ${grn}./glassrooms cancel\n${end}"
 }
 
@@ -254,5 +257,6 @@ function main {
             usage
     esac
 }
+
 #runnn Forest ruuuuun
 main
