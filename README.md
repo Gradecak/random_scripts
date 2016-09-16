@@ -1,6 +1,6 @@
 # Scripts:
-* [glassrooms](#Glassrooms)
-* [defolder](#Defolder)
+* [glassrooms](#glassrooms)
+* [defolder](#defolder)
 
 
 ## Glassrooms
