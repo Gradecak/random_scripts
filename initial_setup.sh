@@ -24,7 +24,7 @@ ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/
 brew install node python3 htop 
 brew cleanup
 
-brew cask install docker firefox flux google-chrome google-drive sublime-text iterm2  transmission vlc 
+brew cask install whatsapp docker firefox flux google-chrome google-drive sublime-text iterm2  transmission vlc 
 brew cask cleanup
 
 #sym link to the iterm2 settings
