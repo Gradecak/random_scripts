@@ -13,6 +13,7 @@ ln -s -f "$dotfiles/.bash_profile" "$HOME/.bash_profile"
 ln -s -f "$dotfiles/.gitconfig" "$HOME/.gitconfig"
 ln -s -f "$dotfiles/config" "$HOME/.ssh/config"
 ln -s -f "$dotfiles/.vimrc" "$HOME/.vimrc"
+ln -s -f "$dotfiles/.emacs" "$HOME/.emacs"
 
 #setup Vundle plugin manager for vim
 git clone https://github.com/VundleVim/Vundle.vim.git "$HOME/.vim/bundle/Vundle.vim"
@@ -24,8 +25,9 @@ source "$HOME/.bash_profile"
 #install homebrew
 ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)" ||:
 
+brew tap railwaycat/emacsmacport
 #install core programs with brew
-brew install node python3 htop 
+brew install node python3 htop emacs-mac
 brew cleanup
 
 #install gui programs with brew cask
