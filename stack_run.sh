@@ -14,9 +14,12 @@ function getProjectName {
 }
 
 function build {
-    b="$(stack build | grep Failure)"
-    if [ "b" != "" ];then
-        echo "Build Failed"
+    stack_log="$(stack build 2>&1)"
+    failure="$(echo $stack_log | grep ExitFailure)"
+    if [ "$failure" != "" ];then
+        echo "$stack_log"
+        echo "Build Failed, See above stack log for details..."
+        exit 0
     else
         project="$(getProjectName)"
         args="$(genArgString)"
